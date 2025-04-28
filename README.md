@@ -75,3 +75,4 @@ Username Validation: Ensures that usernames are at least 6 characters long and c
 
 ## Screenshots
 
+![Screenshot 2025-04-28 120647](https://github.com/user-attachments/assets/06d1f4fe-735b-4c5b-bf24-6658ca2a1c59)
