@@ -68,4 +68,16 @@ public class Message {
     public String getStatusMessage() {
         return status;
     }
+
+    public Long getId() {
+        return id;
+    }
+    public String getRecipient() {
+        return recipient;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
 }

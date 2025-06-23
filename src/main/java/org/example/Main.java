@@ -12,6 +12,11 @@ import java.util.List;
 public class Main {
     static User[] users = new User[10];
     static int userCount = 0;
+    static List<Message> sentMessagesArray = new ArrayList<>();
+    static List<Message> disregardedMessagesArray = new ArrayList<>();
+    static List<Message> storedMessagesArray = new ArrayList<>();
+    static List<String> messageHashes = new ArrayList<>();
+    static List<Long> messageIDs = new ArrayList<>();
 
     public static void main(String[] args) {
         while (true) {
@@ -46,7 +51,7 @@ public class Main {
 
         List<Message> sentMessages = new ArrayList<>();
         while (true) {
-            String[] menuOptions = {"Send Message", "Show Recently Sent Messages", "Quit"};
+            String[] menuOptions = {"Send Message", "Show Recently Sent Messages", "Task Report", "Quit"};
             int choice = JOptionPane.showOptionDialog(null,
                     "Choose an option:",
                     "QuickChat Menu",
@@ -60,6 +65,8 @@ public class Main {
                 sendMessages(maxMessages, sentMessages);
             } else if (choice == 1) {
                 showSentMessages(sentMessages);
+            } else if (choice == 2) {
+                showTaskReportMenu();
             } else {
                 break;
             }
@@ -108,9 +115,14 @@ public class Main {
         if (action == 0 || action == 2) {
             Message message = new Message(messageId, msgNum, recipient, content);
             messages.add(message);
+            sentMessagesArray.add(message);
+            messageHashes.add(message.getHash());
+            messageIDs.add(message.getId());
             JOptionPane.showMessageDialog(null, message.printMessages());
         } else {
-            JOptionPane.showMessageDialog(null, "Message discarded.");
+            Message discarded = new Message(messageId, msgNum, recipient, content);
+            discarded.setStatus("Disregarded");
+            disregardedMessagesArray.add(discarded);
         }
     }
 
@@ -295,10 +307,143 @@ public class Main {
                         user.getFirstName(), user.getLastName());
                 JOptionPane.showMessageDialog(null, loginDetails, "Login Successful", JOptionPane.INFORMATION_MESSAGE);
                 startQuickChat();
+                loadStoredMessagesFromJson();
                 return;
             }
         }
         JOptionPane.showMessageDialog(null, "Invalid username or password. Please try again.");
     }
+    public static void loadStoredMessagesFromJson() {
+        Gson gson = new Gson();
+        try (java.io.FileReader reader = new java.io.FileReader("messages.json")) {
+            Message[] messages = gson.fromJson(reader, Message[].class);
+            for (Message m : messages) {
+                storedMessagesArray.add(m);
+                messageHashes.add(m.getHash());
+                messageIDs.add(m.getId());
+            }
+            JOptionPane.showMessageDialog(null, "Stored messages loaded from JSON.");
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(null, "No stored messages found.");
+        }
+    }
+    private static void showTaskReportMenu() {
+        String[] options = {
+                "View Sender & Recipients",
+                "View Longest Message",
+                "Search by Message ID",
+                "Search by Recipient",
+                "Delete by Message Hash",
+                "Display Full Report",
+                "Back"
+        };
+
+        while (true) {
+            int choice = JOptionPane.showOptionDialog(null, "Task Report Menu", "Reports",
+                    JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE,
+                    null, options, options[0]);
+
+            switch (choice) {
+                case 0 -> viewSenderAndRecipients();
+                case 1 -> showLongestMessage();
+                case 2 -> searchByMessageId();
+                case 3 -> searchByRecipient();
+                case 4 -> deleteByMessageHash();
+                case 5 -> displayFullReport();
+                default -> { return; }
+            }
+        }
+    }
+    private static void viewSenderAndRecipients() {
+        if (sentMessagesArray.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "No sent messages to show.");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Message m : sentMessagesArray) {
+            sb.append("Recipient: ").append(m.getRecipient()).append("\nMessage: ").append(m.getContent()).append("\n\n");
+        }
+        JOptionPane.showMessageDialog(null, sb.toString(), "Sender & Recipients", JOptionPane.INFORMATION_MESSAGE);
+    }
+    private static void showLongestMessage() {
+        if (sentMessagesArray.isEmpty()) return;
+
+        Message longest = sentMessagesArray.stream()
+                .max((m1, m2) -> Integer.compare(m1.getContent().length(), m2.getContent().length()))
+                .orElse(null);
+
+        JOptionPane.showMessageDialog(null, "Longest Message:\n" + longest.getContent());
+    }
+    private static void searchByMessageId() {
+        String input = JOptionPane.showInputDialog("Enter message ID:");
+        if (input == null) return;
+
+        for (Message m : sentMessagesArray) {
+            if (String.valueOf(m.getId()).equals(input)) {
+                JOptionPane.showMessageDialog(null,
+                        "Recipient: " + m.getRecipient() + "\nMessage: " + m.getContent());
+                return;
+            }
+        }
+        JOptionPane.showMessageDialog(null, "Message ID not found.");
+    }
+    private static void searchByRecipient() {
+        String input = JOptionPane.showInputDialog("Enter recipient number:");
+        if (input == null) return;
+
+        StringBuilder sb = new StringBuilder();
+        for (Message m : sentMessagesArray) {
+            if (m.getRecipient().equals(input)) {
+                sb.append(m.getContent()).append("\n");
+            }
+        }
+        for (Message m : storedMessagesArray) {
+            if (m.getRecipient().equals(input)) {
+                sb.append(m.getContent()).append("\n");
+            }
+        }
+
+        if (sb.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "No messages found for that recipient.");
+        } else {
+            JOptionPane.showMessageDialog(null, "Messages:\n" + sb);
+        }
+    }
+    private static void deleteByMessageHash() {
+        String input = JOptionPane.showInputDialog("Enter message hash to delete:");
+        if (input == null) return;
+
+        for (Message m : sentMessagesArray) {
+            if (m.getHash().equals(input)) {
+                sentMessagesArray.remove(m);
+                messageHashes.remove(m.getHash());
+                messageIDs.remove(m.getId());
+                JOptionPane.showMessageDialog(null, "Message \"" + m.getContent() + "\" successfully deleted.");
+                return;
+            }
+        }
+        JOptionPane.showMessageDialog(null, "No message found with that hash.");
+    }
+    private static void displayFullReport() {
+        if (sentMessagesArray.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "No sent messages.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder("📄 Sent Message Report:\n\n");
+        for (Message m : sentMessagesArray) {
+            sb.append("Hash: ").append(m.getHash()).append("\n")
+                    .append("Recipient: ").append(m.getRecipient()).append("\n")
+                    .append("Message: ").append(m.getContent()).append("\n\n");
+        }
+
+        JTextArea area = new JTextArea(sb.toString());
+        area.setEditable(false);
+        JScrollPane scroll = new JScrollPane(area);
+        scroll.setPreferredSize(new java.awt.Dimension(500, 300));
+
+        JOptionPane.showMessageDialog(null, scroll, "Full Sent Message Report", JOptionPane.INFORMATION_MESSAGE);
+    }
+
 }
 
